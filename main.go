@@ -4,22 +4,23 @@
 package main
 
 import (
+	"bufio"
+	"flag"
 	"fmt"
+	"github.com/google/uuid"
+	"io"
 	"net"
 	"os"
 	"os/exec"
-	"bufio"
 	"strings"
-	"io"
-	"flag"
-	"github.com/google/uuid"
 	"time"
 )
 
 var (
-	CONN_HOST = "0.0.0.0"
-	CONN_PORT = "9100"
-	LOG_LEVEL = "error"
+	CONN_HOST   = "0.0.0.0"
+	CONN_PORT   = "9100"
+	LOG_LEVEL   = "error"
+	BIN_DIR     = "/home/root/"
 	XOCHITL_DIR = "/home/root/.local/share/remarkable/xochitl/"
 )
 
@@ -36,7 +37,6 @@ const METADATA_TEMPLATE = `{
     "visibleName": "%v"
 }
 `
-
 
 func main() {
 
@@ -60,7 +60,7 @@ func main() {
 	// ----- Listen for connections -----
 
 	// Listen for incoming connections.
-	l, err := net.Listen("tcp", *CONN_HOST + ":" + *CONN_PORT)
+	l, err := net.Listen("tcp", *CONN_HOST+":"+*CONN_PORT)
 	check(err)
 	defer l.Close()
 
@@ -86,7 +86,6 @@ func main() {
 	}
 }
 
-
 func debug(msg ...string) {
 	if LOG_LEVEL == "debug" {
 		fmt.Println(msg)
@@ -99,11 +98,12 @@ func check(e error) {
 	}
 }
 
-
 // Handles incoming requests.
 func handleRequest(conn net.Conn) {
 	u, _ := uuid.NewRandom()
-	pdf_path := XOCHITL_DIR + u.String() + ".pdf"
+	pdf_path := XOCHITL_DIR + u.String() + ".orig.pdf"
+	final_pdf_path := XOCHITL_DIR + u.String() + ".pdf"
+	mutool_path := BIN_DIR + "mutool"
 	fmt.Println("Saving PDF to", pdf_path)
 
 	// ----- Create .pdf -----
@@ -151,6 +151,13 @@ func handleRequest(conn net.Conn) {
 			f.Close()
 			break
 		}
+	}
+
+	// ----- Cut pdf -----
+	stdout, err := exec.Command(mutool_path, "poster", "-y", "2",
+		pdf_path, final_pdf_path).CombinedOutput()
+	if err != nil {
+		fmt.Println("mutool failed with message:", string(stdout))
 	}
 
 	// ----- Create .metadata -----
